@@ -42,13 +42,11 @@ jobs:
   cargo_audit:
     name: Cargo Audit [Security]
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./
     steps:
-      - uses: actions-rs/install@v0.1.2
+      - uses: actions-rs/install@v0.1
         with:
-          crate: cargo-audit
+          crate: cargo-audit0
+      - working-directory: ./
       - run: cargo generate-lockfile
       - run: cargo audit
 
