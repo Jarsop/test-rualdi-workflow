@@ -46,7 +46,6 @@ jobs:
       - uses: actions-rs/install@v0.1.2
         with:
           crate: cargo-audit
-      - run: cargo generate-lockfile
       - run: cargo audit
 
   # Ensure that the project could be successfully compiled
