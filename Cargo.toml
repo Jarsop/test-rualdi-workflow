@@ -1,0 +1,6 @@
+[workspace]
+members = ["rualdi", "rualdlib"]
+
+[profile.release]
+codegen-units = 1
+lto = true
