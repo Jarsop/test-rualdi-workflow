@@ -124,11 +124,13 @@ jobs:
           strip rualdi
           tar czvf ../../../${{ matrix.name }} rualdi
           cd -
+
   github_release:
     needs: build_release
     name: Create GitHub Release
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v1
       - name: Generate release notes
         run: |
           # Temporary fix for https://github.com/actions/setup-go/issues/14
