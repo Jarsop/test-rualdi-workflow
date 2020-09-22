@@ -131,13 +131,7 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-gnu'
         uses: ebbflow-io/cargo-deb-amd64-ubuntu@1.0
         with:
-          cmd: cargo deb --target=${{ matrix.target }} -p rualdi --deb-version ${{ steps.tag.outputs.tag }}_${{ matrix.target }}
-
-      - name: Prepare deb package
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        run: |
-          cd target/${{ matrix.target }}/debian
-          cp rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.deb ../../../rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.deb
+          cmd: cargo deb --target=${{ matrix.target }} -p rualdi --deb-version ${{ steps.tag.outputs.tag }} -o rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.deb
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
