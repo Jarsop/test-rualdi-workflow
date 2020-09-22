@@ -131,27 +131,28 @@ jobs:
           name: ${{ matrix.name }}
           path: ${{ matrix.name }}
   
-  github_release:
-    needs: build_release
-    name: Create GitHub Release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Download Artifacts
-        uses: actions/download-artifact@v2
       - name: Generate release notes
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: |
           # Temporary fix for https://github.com/actions/setup-go/issues/14
           export PATH=$PATH:$(go env GOPATH)/bin
           go get -u github.com/git-chglog/git-chglog/cmd/git-chglog
           git-chglog -c .github/chglog/release.yml $(git describe --tags) > RELEASE.md
-          ls
-          pwd
 
       - name: Create GitHub release
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
         uses: softprops/action-gh-release@v1
         with:
-          files: rualdi-*
+          files: ${{ matrix.name }}
           body_path: RELEASE.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub release
+        if: matrix.target != 'x86_64-unknown-linux-gnu'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ matrix.name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
