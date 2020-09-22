@@ -13,7 +13,7 @@ jobs:
     name: Rustfmt [Formatter]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -31,7 +31,7 @@ jobs:
     name: Clippy [Linter]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
       - run: rustup component add clippy
       - uses: actions-rs/clippy-check@v1
         with:
@@ -43,7 +43,7 @@ jobs:
     name: Cargo Audit [Security]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
       - uses: actions-rs/install@v0.1
         with:
           crate: cargo-audit
@@ -55,7 +55,7 @@ jobs:
     name: Cargo Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -70,7 +70,7 @@ jobs:
     name: Cargo Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
       - uses: actions-rs/cargo@v1
         with:
           command: test
@@ -99,7 +99,7 @@ jobs:
             name: rualdi-x86_64-apple-darwin.tar.gz
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
@@ -136,6 +136,7 @@ jobs:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v2
       - name: Download Artifacts
         uses: actions/download-artifact@v2
       - name: Generate release notes
