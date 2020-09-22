@@ -141,7 +141,10 @@ jobs:
       - name: Create GitHub release ${{ matrix.target }}
         uses: softprops/action-gh-release@v1
         with:
-          files: ${{ needs.build_release.matrix.*.name }}
+          files: |
+            rualdi-x86_64-unknown-linux-gnu.tar.gz
+            rualdi-x86_64-unknown-linux-musl.tar.gz
+            rualdi-x86_64-apple-darwin.tar.gz
           body_path: RELEASE.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
