@@ -124,7 +124,12 @@ jobs:
           strip rualdi
           tar czvf ../../../${{ matrix.name }} rualdi
           cd -
-
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}
+  
   github_release:
     needs: build_release
     name: Create GitHub Release
@@ -138,6 +143,9 @@ jobs:
           go get -u github.com/git-chglog/git-chglog/cmd/git-chglog
           git-chglog -c .github/chglog/release.yml $(git describe --tags) > RELEASE.md
     
+      - name: Download Artifacts
+        uses: actions/download-artifact@v2
+
       - name: Create GitHub release ${{ matrix.target }}
         uses: softprops/action-gh-release@v1
         with:
