@@ -39,7 +39,7 @@ jobs:
           args: --all-targets --all-features -- -D clippy::all
 
   # Run a security audit on dependencies
-  cargo_audit:
+  audit:
     name: Cargo Audit [Security]
     runs-on: ubuntu-latest
     steps:
@@ -51,7 +51,7 @@ jobs:
       - run: cargo audit
 
   # Ensure that the project could be successfully compiled
-  cargo_check:
+  check:
     name: Cargo Check
     runs-on: ubuntu-latest
     steps:
@@ -66,7 +66,7 @@ jobs:
           command: check
 
     # Ensure that the project could be successfully compiled
-  cargo_test:
+  test:
     name: Cargo Test
     runs-on: ubuntu-latest
     steps:
@@ -78,6 +78,7 @@ jobs:
   # Create GitHub release with Rust build targets and release notes
   build_release:
     if: startsWith(github.ref, 'refs/tags/v')
+    needs: [rustfmt, clippy, audit, check, test]
     name: Build GitHub Release
     strategy:
       fail-fast: false
@@ -135,24 +136,19 @@ jobs:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - name: Download Artifacts
+        uses: actions/download-artifact@v2
       - name: Generate release notes
         run: |
           # Temporary fix for https://github.com/actions/setup-go/issues/14
           export PATH=$PATH:$(go env GOPATH)/bin
           go get -u github.com/git-chglog/git-chglog/cmd/git-chglog
           git-chglog -c .github/chglog/release.yml $(git describe --tags) > RELEASE.md
-    
-      - name: Download Artifacts
-        uses: actions/download-artifact@v2
 
-      - name: Create GitHub release ${{ matrix.target }}
+      - name: Create GitHub release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            rualdi-x86_64-unknown-linux-gnu.tar.gz
-            rualdi-x86_64-unknown-linux-musl.tar.gz
-            rualdi-x86_64-apple-darwin.tar.gz
+          files: rualdi-*
           body_path: RELEASE.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
