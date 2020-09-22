@@ -145,6 +145,8 @@ jobs:
           export PATH=$PATH:$(go env GOPATH)/bin
           go get -u github.com/git-chglog/git-chglog/cmd/git-chglog
           git-chglog -c .github/chglog/release.yml $(git describe --tags) > RELEASE.md
+          ls
+          pwd
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v1
