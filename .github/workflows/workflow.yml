@@ -84,6 +84,8 @@ jobs:
         target:
           - x86_64-unknown-linux-gnu
           - x86_64-unknown-linux-musl
+          - armv7-unknown-linux-gnueabihf
+          - armv7-unknown-linux-musleabihf
           - x86_64-apple-darwin
         include:
           - target: x86_64-unknown-linux-gnu
@@ -92,6 +94,12 @@ jobs:
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             name: rualdi-x86_64-unknown-linux-musl.tar.gz
+          - target: armv7-unknown-linux-gnueabihf
+            os: ubuntu-latest
+            name: rualdi-armv7-unknown-linux-gnueabihf.tar.gz
+          - target: armv7-unknown-linux-musleabihf
+            os: ubuntu-latest
+            name: armv7-unknown-linux-musleabihf.tar.gz
           - target: x86_64-apple-darwin
             os: macOS-latest
             name: rualdi-x86_64-apple-darwin.tar.gz
@@ -111,7 +119,7 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Install musl tools
-        if: matrix.target == 'x86_64-unknown-linux-musl'
+        if: contains(matrix.target, 'musl')
         run: sudo apt-get install -y musl-tools
 
       - name: Build target
@@ -127,11 +135,23 @@ jobs:
           tar czvf ../../../${{ matrix.name }} rualdi
           cd -
 
-      - name: Build deb package
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
+      - name: Build deb x86_64 package
+        if: startsWith(matrix.target, 'x86_64-unknown-linux')
         uses: ebbflow-io/cargo-deb-amd64-ubuntu@1.0
         with:
           cmd: cargo deb --target=${{ matrix.target }} -p rualdi --deb-version ${{ steps.tag.outputs.tag }} -o rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.deb
+
+      - name: Build deb armv7 package
+        if: startsWith(matrix.target, 'armv7-unknown-linux')
+        uses: ebbflow-io/cargo-deb-armv7-debian@1.0
+        with:
+          cmd: cargo deb --target=${{ matrix.target }} -p rualdi --deb-version ${{ steps.tag.outputs.tag }} -o rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.deb
+
+      - name: Build rpm package
+        if: startsWith(matrix.target, 'x86_64-unknown-linux')
+        uses: ebbflow-io/cargo-rpm-amd64-fedora@1.0
+        with:
+          cmd: cd rualdi && cargo rpm --target=${{ matrix.target }} -o ../rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.rpm
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
@@ -140,11 +160,18 @@ jobs:
           path: ${{ matrix.name }}
 
       - name: Upload deb artifact
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        if: contains(matrix.target, 'linux')
         uses: actions/upload-artifact@v2
         with:
           name: rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.deb
           path: rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.deb
+      
+      - name: Upload rpm artifact
+        if: startsWith(matrix.target, 'x86_64-unknown-linux')
+        uses: actions/upload-artifact@v2
+        with:
+          name: rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.rpm
+          path: rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.rpm
 
       - name: Generate release notes
         if: matrix.target == 'x86_64-unknown-linux-gnu'
