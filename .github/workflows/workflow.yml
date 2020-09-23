@@ -122,6 +122,10 @@ jobs:
         if: contains(matrix.target, 'musl')
         run: sudo apt-get install -y musl-tools
 
+      - name: Install armv7 tools
+        if: contains(matrix.target, 'armv7')
+        run: sudo apt-get install -y libc6-armhf-cross libc6-dev-armhf-cross gcc-arm-linux-gnueabihf
+
       - name: Build target
         uses: actions-rs/cargo@v1
         with:
@@ -147,11 +151,11 @@ jobs:
         with:
           cmd: cargo deb --target=${{ matrix.target }} -p rualdi --deb-version ${{ steps.tag.outputs.tag }} -o rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.deb
 
-      - name: Build rpm package
-        if: startsWith(matrix.target, 'x86_64-unknown-linux')
-        uses: ebbflow-io/cargo-rpm-amd64-fedora@1.0
-        with:
-          cmd: cd rualdi && cargo rpm --target=${{ matrix.target }} -o ../rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.rpm
+      # - name: Build rpm package
+      #   if: startsWith(matrix.target, 'x86_64-unknown-linux')
+      #   uses: ebbflow-io/cargo-rpm-amd64-fedora@1.0
+      #   with:
+      #     cmd: cd rualdi && cargo rpm --target=${{ matrix.target }} -o ../rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.rpm
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
@@ -166,12 +170,12 @@ jobs:
           name: rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.deb
           path: rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.deb
       
-      - name: Upload rpm artifact
-        if: startsWith(matrix.target, 'x86_64-unknown-linux')
-        uses: actions/upload-artifact@v2
-        with:
-          name: rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.rpm
-          path: rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.rpm
+      # - name: Upload rpm artifact
+      #   if: startsWith(matrix.target, 'x86_64-unknown-linux')
+      #   uses: actions/upload-artifact@v2
+      #   with:
+      #     name: rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.rpm
+      #     path: rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.rpm
 
       - name: Generate release notes
         if: matrix.target == 'x86_64-unknown-linux-gnu'
