@@ -122,13 +122,18 @@ jobs:
         if: contains(matrix.target, 'musl')
         run: sudo apt-get install -y musl-tools
 
-      - name: Install armv7 tools
-        if: contains(matrix.target, 'armv7')
-        run: sudo apt-get install -y libc6-armhf-cross libc6-dev-armhf-cross gcc-arm-linux-gnueabihf
-
-      - name: Build target
+      - name: Build x86_64 target
+        if: startsWith(matrix.target, 'x86_64')
         uses: actions-rs/cargo@v1
         with:
+          command: build
+          args: --release --target ${{ matrix.target }}
+      
+      - name: Build armv7 target
+        if: startsWith(matrix.target, 'armv7')
+        uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
           command: build
           args: --release --target ${{ matrix.target }}
 
