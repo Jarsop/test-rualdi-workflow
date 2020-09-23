@@ -84,7 +84,6 @@ jobs:
         target:
           - x86_64-unknown-linux-gnu
           - x86_64-unknown-linux-musl
-          - armv7-unknown-linux-gnueabihf
           - armv7-unknown-linux-musleabihf
           - x86_64-apple-darwin
         include:
@@ -94,12 +93,9 @@ jobs:
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             name: rualdi-x86_64-unknown-linux-musl.tar.gz
-          - target: armv7-unknown-linux-gnueabihf
-            os: ubuntu-latest
-            name: rualdi-armv7-unknown-linux-gnueabihf.tar.gz
           - target: armv7-unknown-linux-musleabihf
             os: ubuntu-latest
-            name: armv7-unknown-linux-musleabihf.tar.gz
+            name: rualdi-armv7-unknown-linux-musleabihf.tar.gz
           - target: x86_64-apple-darwin
             os: macOS-latest
             name: rualdi-x86_64-apple-darwin.tar.gz
@@ -200,14 +196,11 @@ jobs:
         target:
           - x86_64-unknown-linux-gnu
           - x86_64-unknown-linux-musl
-          - armv7-unknown-linux-gnueabihf
           - armv7-unknown-linux-musleabihf
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
           - target: x86_64-unknown-linux-musl
-            os: ubuntu-latest
-          - target: armv7-unknown-linux-gnueabihf
             os: ubuntu-latest
           - target: armv7-unknown-linux-musleabihf
             os: ubuntu-latest
