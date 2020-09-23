@@ -122,6 +122,10 @@ jobs:
         if: contains(matrix.target, 'musl')
         run: sudo apt-get install -y musl-tools
 
+      - name: Install armv7 tools
+        if: contains(matrix.target, 'armv7')
+        run: sudo apt-get install -y gcc-arm-linux-gnueabihf
+
       - name: Build x86_64 target
         if: startsWith(matrix.target, 'x86_64')
         uses: actions-rs/cargo@v1
@@ -136,13 +140,6 @@ jobs:
           use-cross: true
           command: build
           args: --release --target ${{ matrix.target }}
-
-      - name: Prepare build artifacts [-nix]
-        run: |
-          cd target/${{ matrix.target }}/release
-          strip rualdi
-          tar czvf ../../../${{ matrix.name }} rualdi
-          cd -
 
       - name: Build deb x86_64 package
         if: startsWith(matrix.target, 'x86_64-unknown-linux')
@@ -161,6 +158,26 @@ jobs:
       #   uses: ebbflow-io/cargo-rpm-amd64-fedora@1.0
       #   with:
       #     cmd: cd rualdi && cargo rpm --target=${{ matrix.target }} -o ../rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.rpm
+
+      - name: Strip x86_64 artifacts
+        if: startsWith(matrix.target, 'x86_64')
+        run: |
+          cd target/${{ matrix.target }}/release
+          strip rualdi
+          cd -
+
+      - name: Strip armv7 artifacts
+        if: startsWith(matrix.target, 'armv7')
+        run: |
+          cd target/${{ matrix.target }}/release
+          arm-linux-gnueabihf-strip rualdi
+          cd -
+
+      - name: Prepare build artifacts [-nix]
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czvf ../../../${{ matrix.name }} rualdi
+          cd -
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
