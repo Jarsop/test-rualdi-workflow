@@ -1,7 +1,7 @@
 style: github
 template: RELEASE.tpl.md
 info:
-  repository_url: https://github.com/Jarsop/rualdi
+  repository_url: https://github.com/Jarsop/test-rualdi-workflow
 options:
   commits:
     # filters:
