@@ -185,6 +185,7 @@ jobs:
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
+          profile: minimal
           toolchain: stable
           override: true
           target: ${{ matrix.target }}
@@ -194,22 +195,15 @@ jobs:
         run: sudo apt-get install -y musl-tools
 
       - name: Install armv7 tools
-        if: contains(matrix.target, 'armv7')
+        if: startsWith(matrix.target, 'armv7')
         run: sudo apt-get install -y gcc-arm-linux-gnueabihf
 
       - name: Build x86_64 target
-        if: contains(matrix.target, 'musl') != true
+        if: startsWith(matrix.target, 'x86_64')
         uses: actions-rs/cargo@v1
         with:
           command: build
           args: --release --target ${{ matrix.target }}
-
-      - name: Build x86_64 target (musl)
-        if: matrix.target == 'x86_64-unknown-linux-musl'
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --features tls-vendored --target ${{ matrix.target }}
 
       - name: Build armv7 target
         if: startsWith(matrix.target, 'armv7')
