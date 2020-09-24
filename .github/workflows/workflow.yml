@@ -52,6 +52,8 @@ jobs:
   check:
     name: Cargo Check [Compile]
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v2
 
@@ -85,6 +87,9 @@ jobs:
           command: check
           args: --all
 
+      - id: version
+        run: echo ::set-output name=version::${GITHUB_REF#refs/*/}
+
     # Ensure that the project could be successfully compiled
   test:
     name: Cargo Test [Test]
@@ -92,7 +97,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macOS-latest, windows-latest]
+        os: [ubuntu-latest, macOS-latest]
         rust: [stable, nightly]
     steps:
       # Checkout the branch being tested
@@ -128,15 +133,15 @@ jobs:
 
       - name: Test rualdi
         run: cargo test
-        
+
       - name: Test rualdlib
         run: cd rualdlib && cargo test
 
-  # Create GitHub release with Rust build targets and release notes
-  build_release:
+  # Build binary for every OS expect Windows
+  build_binaries:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [rustfmt, clippy, audit, check, test]
-    name: Build GitHub Release
+    name: Build release binaries
     strategy:
       fail-fast: false
       matrix:
@@ -148,19 +153,34 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            name: rualdi-x86_64-unknown-linux-gnu.tar.gz
+            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu.tar.gz
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
-            name: rualdi-x86_64-unknown-linux-musl.tar.gz
+            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl.tar.gz
           - target: armv7-unknown-linux-musleabihf
             os: ubuntu-latest
-            name: rualdi-armv7-unknown-linux-musleabihf.tar.gz
+            name: rualdi-${{ needs.check.outputs.version }}_armv7-unknown-linux-musleabihf.tar.gz
           - target: x86_64-apple-darwin
             os: macOS-latest
-            name: rualdi-x86_64-apple-darwin.tar.gz
+            name: rualdi-${{ needs.check.outputs.version }}_x86_64-apple-darwin.tar.gz
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
+
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-index-
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
@@ -178,11 +198,18 @@ jobs:
         run: sudo apt-get install -y gcc-arm-linux-gnueabihf
 
       - name: Build x86_64 target
-        if: startsWith(matrix.target, 'x86_64')
+        if: ! contains(matrix.target, 'musl')
         uses: actions-rs/cargo@v1
         with:
           command: build
           args: --release --target ${{ matrix.target }}
+
+      - name: Build x86_64 target (musl)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --features tls-vendored --target ${{ matrix.target }}
 
       - name: Build armv7 target
         if: startsWith(matrix.target, 'armv7')
@@ -218,35 +245,10 @@ jobs:
           name: ${{ matrix.name }}
           path: ${{ matrix.name }}
 
-      - name: Generate release notes
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        run: |
-          # Temporary fix for https://github.com/actions/setup-go/issues/14
-          export PATH=$PATH:$(go env GOPATH)/bin
-          go get -u github.com/git-chglog/git-chglog/cmd/git-chglog
-          git-chglog -c .github/chglog/release.yml $(git describe --tags) > RELEASE.md
-          cat RELEASE.md
-
-      - name: Create GitHub release
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ${{ matrix.name }}
-          body_path: RELEASE.md
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create GitHub release
-        if: matrix.target != 'x86_64-unknown-linux-gnu'
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ${{ matrix.name }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build_deb:
-    needs: [build_release]
-    name: Build GitHub deb package Release
+    needs: [rustfmt, clippy, audit, check, test]
+    name: Build release deb packages
     strategy:
       fail-fast: false
       matrix:
@@ -257,47 +259,40 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
+            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu.deb
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
+            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl.deb
           - target: armv7-unknown-linux-musleabihf
             os: ubuntu-latest
+            name: rualdi-${{ needs.check.outputs.version }}_armv7-unknown-linux-musleabihf.deb
 
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
-      - name: Set version
-        id: tag
-        run: echo ::set-output name=tag::${GITHUB_REF#refs/*/}
 
       - name: Build deb x86_64 package
         if: startsWith(matrix.target, 'x86_64')
         uses: ebbflow-io/cargo-deb-amd64-ubuntu@1.0
         with:
-          cmd: cargo deb --target=${{ matrix.target }} --deb-version ${{ steps.tag.outputs.tag }} -o rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.deb
+          cmd: cargo deb --target=${{ matrix.target }} --deb-version ${{ needs.check.outputs.version }} -o ${{ matrix.name }}
 
       - name: Build deb armv7 package
         if: startsWith(matrix.target, 'armv7')
         uses: ebbflow-io/cargo-deb-armv7-debian@1.0
         with:
-          cmd: cargo deb --target=${{ matrix.target }} --deb-version ${{ steps.tag.outputs.tag }} -o rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.deb --no-strip
+          cmd: cargo deb --target=${{ matrix.target }} --deb-version ${{ needs.check.outputs.version }} -o ${{ matrix.name }} --no-strip
 
       - name: Upload deb artifact
-        if: contains(matrix.target, 'linux')
         uses: actions/upload-artifact@v2
         with:
-          name: rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.deb
-          path: rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.deb
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}
 
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.deb
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build_rpm_fedora:
-    needs: [build_release]
-    name: Build GitHub rpm Fedora package Release
+    needs: [rustfmt, clippy, audit, check, test]
+    name: Build release rpm Fedora package
     strategy:
       fail-fast: false
       matrix:
@@ -307,37 +302,30 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
+            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu_fedora.rpm
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
+            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl_fedora.rpm
 
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
-      - name: Set version
-        id: tag
-        run: echo ::set-output name=tag::${GITHUB_REF#refs/*/}
 
       - name: Build rpm package
         uses: ebbflow-io/cargo-rpm-amd64-fedora@1.0
         with:
-          cmd: cargo rpm build -v -t ${{ matrix.target }} -o rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}_fedora.rpm
+          cmd: cargo rpm build -v -t ${{ matrix.target }} -o ${{ matrix.name }}
 
       - name: Upload rpm Fedora artifact
         uses: actions/upload-artifact@v2
         with:
-          name: rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}_fedora.rpm
-          path: rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}_fedora.rpm
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}
 
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}_fedora.rpm
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+  
   build_rpm_opensuseleap:
-    needs: [build_release]
-    name: Build GitHub rpm OpenSUSE Leap package Release
+    needs: [rustfmt, clippy, audit, check, test]
+    name: Build release rpm OpenSUSE Leap package
     strategy:
       fail-fast: false
       matrix:
@@ -347,30 +335,94 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
+            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu_opensuseleap.rpm
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
+            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl_opensuseleap.rpm
 
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
-      - name: Set version
-        id: tag
-        run: echo ::set-output name=tag::${GITHUB_REF#refs/*/}
-        
+       
       - name: Build rpm package
         uses: ebbflow-io/cargo-rpm-amd64-opensuseleap@1.0
         with:
-          cmd: cargo rpm build -v -t ${{ matrix.target }} -o rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}_opensuseleap.rpm
+          cmd: cargo rpm build -v -t ${{ matrix.target }} -o ${{ matrix.name }}
 
       - name: Upload rpm OpenSUSE Leap artifact
         uses: actions/upload-artifact@v2
         with:
-          name: rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}_opensuseleap.rpm
-          path: rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}_opensuseleap.rpm
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}
 
-      - name: Create GitHub release
+
+  github_release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    name: Create GitHub Release
+    needs: [check, build_binaries, build_deb, build_rpm_fedora, build_rpm_opensuseleap]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      # These can be squashed when https://github.com/actions/download-artifact/issues/6 is closed
+      - name: Download releases from every builds
+        uses: actions/download-artifact@v2
+      #   with:
+      #     name: starship-x86_64-unknown-linux-gnu.tar.gz
+      #     path: .
+      # - name: Download releases from github_build
+      #   uses: actions/download-artifact@v1
+      #   with:
+      #     name: starship-x86_64-unknown-linux-musl.tar.gz
+      #     path: .
+      # - name: Download releases from github_build
+      #   uses: actions/download-artifact@v1
+      #   with:
+      #     name: starship-x86_64-apple-darwin.tar.gz
+      #     path: .
+      # - name: Download releases from github_build
+      #   uses: actions/download-artifact@v1
+      #   with:
+      #     name: starship-x86_64-pc-windows-msvc.zip
+      #     path: .
+
+      - name: Generate checksums
+        run: for file in rualdi-*; do openssl dgst -sha256 -r "$file" | awk '{print $1}' > "${file}.sha256"; done
+
+      - name: Generate release notes
+        run: |
+          # Temporary fix for https://github.com/actions/setup-go/issues/14
+          export PATH=$PATH:$(go env GOPATH)/bin
+          go get -u github.com/git-chglog/git-chglog/cmd/git-chglog
+          git-chglog -c .github/chglog/release.yml $(git describe --tags) > RELEASE.md
+          cat RELEASE.md
+
+      - name: Create GitHub release ${{ matrix.target }}
         uses: softprops/action-gh-release@v1
         with:
-          files: rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}_opensuseleap.rpm
+          files: |
+            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu.tar.gz
+            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu.tar.gz.sha256
+            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl.tar.gz
+            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl.tar.gz.sha256
+            rualdi-${{ needs.check.outputs.version }}_armv7-unknown-linux-musleabihf.tar.gz
+            rualdi-${{ needs.check.outputs.version }}_armv7-unknown-linux-musleabihf.tar.gz.sha256
+            rualdi-${{ needs.check.outputs.version }}_x86_64-apple-darwin.tar.gz
+            rualdi-${{ needs.check.outputs.version }}_x86_64-apple-darwin.tar.gz.sha256
+            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu.deb
+            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu.deb.sha256
+            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl.deb
+            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl.deb.sha256
+            rualdi-${{ needs.check.outputs.version }}_armv7-unknown-linux-musleabihf.deb
+            rualdi-${{ needs.check.outputs.version }}_armv7-unknown-linux-musleabihf.deb.sha256
+            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu_fedora.rpm
+            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu_fedora.rpm.sha256
+            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl_fedora.rpm
+            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl_fedora.rpm.sha256
+            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu_opensuseleap.rpm
+            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu_opensuseleap.rpm.sha256
+            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl_opensuseleap.rpm
+            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl_opensuseleap.rpm.sha256
+          body_path: RELEASE.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
