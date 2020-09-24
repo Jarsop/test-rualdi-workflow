@@ -8,8 +8,9 @@ jobs:
   version:
     outputs:
       version: ${{ steps.version.outputs.version }}
-    - id: version
-      run: echo ::set-output name=version::${GITHUB_REF#refs/*/}
+      steps:
+        - id: version
+          run: echo ::set-output name=version::${GITHUB_REF#refs/*/}
 
   # Build binary for every OS expect Windows
   build_binaries:
