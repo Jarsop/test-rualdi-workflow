@@ -247,6 +247,7 @@ jobs:
 
 
   build_deb:
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: [rustfmt, clippy, audit, check, test]
     name: Build release deb packages
     strategy:
@@ -291,6 +292,7 @@ jobs:
 
 
   build_rpm_fedora:
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: [rustfmt, clippy, audit, check, test]
     name: Build release rpm Fedora package
     strategy:
@@ -324,6 +326,7 @@ jobs:
 
   
   build_rpm_opensuseleap:
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: [rustfmt, clippy, audit, check, test]
     name: Build release rpm OpenSUSE Leap package
     strategy:
