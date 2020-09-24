@@ -72,6 +72,10 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: test
+      - run: cd rualdlib
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
 
   # Create GitHub release with Rust build targets and release notes
   build_release:
@@ -102,9 +106,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
-      - name: Set version
-        id: tag
-        run: echo ::set-output name=tag::${GITHUB_REF#refs/*/}
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
@@ -169,6 +170,7 @@ jobs:
           export PATH=$PATH:$(go env GOPATH)/bin
           go get -u github.com/git-chglog/git-chglog/cmd/git-chglog
           git-chglog -c .github/chglog/release.yml $(git describe --tags) > RELEASE.md
+          cat RELEASE.md
 
       - name: Create GitHub release
         if: matrix.target == 'x86_64-unknown-linux-gnu'
@@ -216,13 +218,13 @@ jobs:
         if: startsWith(matrix.target, 'x86_64')
         uses: ebbflow-io/cargo-deb-amd64-ubuntu@1.0
         with:
-          cmd: cargo deb --target=${{ matrix.target }} -p rualdi --deb-version ${{ steps.tag.outputs.tag }} -o rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.deb
+          cmd: cargo deb --target=${{ matrix.target }} --deb-version ${{ steps.tag.outputs.tag }} -o rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.deb
 
       - name: Build deb armv7 package
         if: startsWith(matrix.target, 'armv7')
         uses: ebbflow-io/cargo-deb-armv7-debian@1.0
         with:
-          cmd: cargo deb --target=${{ matrix.target }} -p rualdi --deb-version ${{ steps.tag.outputs.tag }} -o rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.deb --no-strip
+          cmd: cargo deb --target=${{ matrix.target }} --deb-version ${{ steps.tag.outputs.tag }} -o rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}.deb --no-strip
 
       - name: Upload deb artifact
         if: contains(matrix.target, 'linux')
@@ -263,7 +265,7 @@ jobs:
       - name: Build rpm package
         uses: ebbflow-io/cargo-rpm-amd64-fedora@1.0
         with:
-          cmd: cd rualdi && cargo rpm build -v -t ${{ matrix.target }} -o ../rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}_fedora.rpm
+          cmd: cargo rpm build -v -t ${{ matrix.target }} -o rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}_fedora.rpm
 
       - name: Upload rpm Fedora artifact
         uses: actions/upload-artifact@v2
@@ -303,7 +305,7 @@ jobs:
       - name: Build rpm package
         uses: ebbflow-io/cargo-rpm-amd64-opensuseleap@1.0
         with:
-          cmd: cd rualdi && cargo rpm build -v -t ${{ matrix.target }} -o ../rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}_opensuseleap.rpm
+          cmd: cargo rpm build -v -t ${{ matrix.target }} -o rualdi_${{ steps.tag.outputs.tag }}_${{ matrix.target }}_opensuseleap.rpm
 
       - name: Upload rpm OpenSUSE Leap artifact
         uses: actions/upload-artifact@v2
