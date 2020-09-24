@@ -33,7 +33,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Setup | Checkout
-      - uses: actions/checkout@v2
+        uses: actions/checkout@v2
 
       - name: Setup | Cache Cargo
         uses: actions/cache@v2
@@ -125,7 +125,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Setup | Checkout
-      - uses: actions/checkout@v2
+        uses: actions/checkout@v2
 
       - name: Build | Deb x86_64 package
         if: startsWith(matrix.target, 'x86_64')
@@ -166,7 +166,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Setup | Checkout
-      - uses: actions/checkout@v2
+        uses: actions/checkout@v2
 
       - name: Build | Rpm Fedora package
         uses: ebbflow-io/cargo-rpm-amd64-fedora@1.0
@@ -200,7 +200,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Setup | Checkout
-      - uses: actions/checkout@v2
+        uses: actions/checkout@v2
        
       - name: Build | Rpm OpenSUSE Leap package
         uses: ebbflow-io/cargo-rpm-amd64-opensuseleap@1.0
