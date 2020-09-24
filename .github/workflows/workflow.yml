@@ -13,29 +13,57 @@ jobs:
     name: Rustfmt [Formatter]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - name: Setup | Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup | Rust
+        uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           components: rustfmt
           override: true
-      - run: rustup component add rustfmt
-      - uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+
+      - name: Build | Format
+        run: cargo fmt --all -- --check
 
   # Run the `clippy` linting tool
   clippy:
     name: Clippy [Linter]
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macOS-latest]
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
-      - run: rustup component add clippy
-      - uses: actions-rs/clippy-check@v1
+      - name: Setup | Checkout
+        uses: actions/checkout@v2
+
+      # Cache files between builds
+      - name: Setup | Cache Cargo
+        uses: actions/cache@v2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Setup | libdbus (ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get install libdbus-1-dev
+
+      - name: Setup | Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          profile: minimal
+          components: clippy
+
+      - name: Build | Lint
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
           args: --all-targets --all-features -- -D clippy::all
 
   # Run a security audit on dependencies
@@ -43,383 +71,80 @@ jobs:
     name: Cargo Audit [Security]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/audit-check@v1
+      - name: Setup | Checkout
+        uses: actions/checkout@v2
+
+      - name: Build | Audit
+        uses: actions-rs/audit-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   # Ensure that the project could be successfully compiled
   check:
-    name: Cargo Check [Compile]
+    name: Compile
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v2
+      - name: Setup | Checkout
+        uses: actions/checkout@v2
 
-      - name: Cache cargo registry
-        uses: actions/cache@v1
+      # Cache files between builds
+      - name: Setup | Cache Cargo
+        uses: actions/cache@v2
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-registry-
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-index-
-      - name: Cache cargo build
-        uses: actions/cache@v1
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - uses: actions-rs/toolchain@v1
+      - name: Setup | Rust
+        uses: actions-rs/toolchain@v1
         with:
-          profile: minimal
           toolchain: stable
+          profile: minimal
           override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --all
+
+      - name: Build | Check
+        run: cargo check --all
 
       - id: version
         run: echo ::set-output name=version::${GITHUB_REF#refs/*/}
 
-    # Ensure that the project could be successfully compiled
+  # Run tests on Linux, and macOS
+  # On both Rust stable and Rust nightly
   test:
-    name: Cargo Test [Test]
+    name: Test Suite
     runs-on: ${{ matrix.os }}
+    needs: check # First check then run expansive tests
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macOS-latest]
         rust: [stable, nightly]
     steps:
-      # Checkout the branch being tested
-      - uses: actions/checkout@v2
+      - name: Setup | Checkout
+        uses: actions/checkout@v2
 
       # Cache files between builds
-      - name: Cache cargo registry
-        uses: actions/cache@v1
+      - name: Setup | Cache Cargo
+        uses: actions/cache@v2
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-registry-
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-index-
-      - name: Cache cargo build
-        uses: actions/cache@v1
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       # Install all the required dependencies for testing
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-
-      - name: Test rualdi
-        run: cargo test
-
-      - name: Test rualdlib
-        run: cd rualdlib && cargo test
-
-  # Build binary for every OS expect Windows
-  build_binaries:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [rustfmt, clippy, audit, check, test]
-    name: Build release binaries
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - x86_64-unknown-linux-gnu
-          - x86_64-unknown-linux-musl
-          - armv7-unknown-linux-musleabihf
-          - x86_64-apple-darwin
-        include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu.tar.gz
-          - target: x86_64-unknown-linux-musl
-            os: ubuntu-latest
-            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl.tar.gz
-          - target: armv7-unknown-linux-musleabihf
-            os: ubuntu-latest
-            name: rualdi-${{ needs.check.outputs.version }}_armv7-unknown-linux-musleabihf.tar.gz
-          - target: x86_64-apple-darwin
-            os: macOS-latest
-            name: rualdi-${{ needs.check.outputs.version }}_x86_64-apple-darwin.tar.gz
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Cache cargo registry
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-registry-
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-index-
-
-      - name: Install Rust toolchain
+      - name: Setup | Rust
         uses: actions-rs/toolchain@v1
         with:
+          toolchain: ${{ matrix.rust }}
           profile: minimal
-          toolchain: stable
           override: true
-          target: ${{ matrix.target }}
 
-      - name: Install musl tools
-        if: contains(matrix.target, 'musl')
-        run: sudo apt-get install -y musl-tools
+      - name: Build | Test rualdi
+        run: cargo test
 
-      - name: Install armv7 tools
-        if: startsWith(matrix.target, 'armv7')
-        run: sudo apt-get install -y gcc-arm-linux-gnueabihf
-
-      - name: Build x86_64 target
-        if: startsWith(matrix.target, 'x86_64')
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --target ${{ matrix.target }}
-
-      - name: Build armv7 target
-        if: startsWith(matrix.target, 'armv7')
-        uses: actions-rs/cargo@v1
-        with:
-          use-cross: true
-          command: build
-          args: --release --target ${{ matrix.target }}
-
-      - name: Strip x86_64 artifacts
-        if: startsWith(matrix.target, 'x86_64')
-        run: |
-          cd target/${{ matrix.target }}/release
-          strip rualdi
-          cd -
-
-      - name: Strip armv7 artifacts
-        if: startsWith(matrix.target, 'armv7')
-        run: |
-          cd target/${{ matrix.target }}/release
-          arm-linux-gnueabihf-strip rualdi
-          cd -
-
-      - name: Prepare build artifacts [-nix]
-        run: |
-          cd target/${{ matrix.target }}/release
-          tar czvf ../../../${{ matrix.name }} rualdi
-          cd -
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v2
-        with:
-          name: ${{ matrix.name }}
-          path: ${{ matrix.name }}
-
-
-  build_deb:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [rustfmt, clippy, audit, check, test]
-    name: Build release deb packages
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - x86_64-unknown-linux-gnu
-          - x86_64-unknown-linux-musl
-          - armv7-unknown-linux-musleabihf
-        include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu.deb
-          - target: x86_64-unknown-linux-musl
-            os: ubuntu-latest
-            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl.deb
-          - target: armv7-unknown-linux-musleabihf
-            os: ubuntu-latest
-            name: rualdi-${{ needs.check.outputs.version }}_armv7-unknown-linux-musleabihf.deb
-
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Build deb x86_64 package
-        if: startsWith(matrix.target, 'x86_64')
-        uses: ebbflow-io/cargo-deb-amd64-ubuntu@1.0
-        with:
-          cmd: cargo deb --target=${{ matrix.target }} --deb-version ${{ needs.check.outputs.version }} -o ${{ matrix.name }}
-
-      - name: Build deb armv7 package
-        if: startsWith(matrix.target, 'armv7')
-        uses: ebbflow-io/cargo-deb-armv7-debian@1.0
-        with:
-          cmd: cargo deb --target=${{ matrix.target }} --deb-version ${{ needs.check.outputs.version }} -o ${{ matrix.name }} --no-strip
-
-      - name: Upload deb artifact
-        uses: actions/upload-artifact@v2
-        with:
-          name: ${{ matrix.name }}
-          path: ${{ matrix.name }}
-
-
-  build_rpm_fedora:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [rustfmt, clippy, audit, check, test]
-    name: Build release rpm Fedora package
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - x86_64-unknown-linux-gnu
-          - x86_64-unknown-linux-musl
-        include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu_fedora.rpm
-          - target: x86_64-unknown-linux-musl
-            os: ubuntu-latest
-            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl_fedora.rpm
-
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Build rpm package
-        uses: ebbflow-io/cargo-rpm-amd64-fedora@1.0
-        with:
-          cmd: cargo rpm build -v -t ${{ matrix.target }} -o ${{ matrix.name }}
-
-      - name: Upload rpm Fedora artifact
-        uses: actions/upload-artifact@v2
-        with:
-          name: ${{ matrix.name }}
-          path: ${{ matrix.name }}
-
-  
-  build_rpm_opensuseleap:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [rustfmt, clippy, audit, check, test]
-    name: Build release rpm OpenSUSE Leap package
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - x86_64-unknown-linux-gnu
-          - x86_64-unknown-linux-musl
-        include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu_opensuseleap.rpm
-          - target: x86_64-unknown-linux-musl
-            os: ubuntu-latest
-            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl_opensuseleap.rpm
-
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v2
-       
-      - name: Build rpm package
-        uses: ebbflow-io/cargo-rpm-amd64-opensuseleap@1.0
-        with:
-          cmd: cargo rpm build -v -t ${{ matrix.target }} -o ${{ matrix.name }}
-
-      - name: Upload rpm OpenSUSE Leap artifact
-        uses: actions/upload-artifact@v2
-        with:
-          name: ${{ matrix.name }}
-          path: ${{ matrix.name }}
-
-
-  github_release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    name: Create GitHub Release
-    needs: [check, build_binaries, build_deb, build_rpm_fedora, build_rpm_opensuseleap]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-
-      # These can be squashed when https://github.com/actions/download-artifact/issues/6 is closed
-      - name: Download releases from every builds
-        uses: actions/download-artifact@v2
-      #   with:
-      #     name: starship-x86_64-unknown-linux-gnu.tar.gz
-      #     path: .
-      # - name: Download releases from github_build
-      #   uses: actions/download-artifact@v1
-      #   with:
-      #     name: starship-x86_64-unknown-linux-musl.tar.gz
-      #     path: .
-      # - name: Download releases from github_build
-      #   uses: actions/download-artifact@v1
-      #   with:
-      #     name: starship-x86_64-apple-darwin.tar.gz
-      #     path: .
-      # - name: Download releases from github_build
-      #   uses: actions/download-artifact@v1
-      #   with:
-      #     name: starship-x86_64-pc-windows-msvc.zip
-      #     path: .
-
-      - name: Generate checksums
-        run: for file in rualdi-*; do openssl dgst -sha256 -r "$file" | awk '{print $1}' > "${file}.sha256"; done
-
-      - name: Generate release notes
-        run: |
-          # Temporary fix for https://github.com/actions/setup-go/issues/14
-          export PATH=$PATH:$(go env GOPATH)/bin
-          go get -u github.com/git-chglog/git-chglog/cmd/git-chglog
-          git-chglog -c .github/chglog/release.yml $(git describe --tags) > RELEASE.md
-          cat RELEASE.md
-
-      - name: Create GitHub release ${{ matrix.target }}
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu.tar.gz
-            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu.tar.gz.sha256
-            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl.tar.gz
-            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl.tar.gz.sha256
-            rualdi-${{ needs.check.outputs.version }}_armv7-unknown-linux-musleabihf.tar.gz
-            rualdi-${{ needs.check.outputs.version }}_armv7-unknown-linux-musleabihf.tar.gz.sha256
-            rualdi-${{ needs.check.outputs.version }}_x86_64-apple-darwin.tar.gz
-            rualdi-${{ needs.check.outputs.version }}_x86_64-apple-darwin.tar.gz.sha256
-            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu.deb
-            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu.deb.sha256
-            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl.deb
-            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl.deb.sha256
-            rualdi-${{ needs.check.outputs.version }}_armv7-unknown-linux-musleabihf.deb
-            rualdi-${{ needs.check.outputs.version }}_armv7-unknown-linux-musleabihf.deb.sha256
-            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu_fedora.rpm
-            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu_fedora.rpm.sha256
-            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl_fedora.rpm
-            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl_fedora.rpm.sha256
-            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu_opensuseleap.rpm
-            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu_opensuseleap.rpm.sha256
-            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl_opensuseleap.rpm
-            rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl_opensuseleap.rpm.sha256
-          body_path: RELEASE.md
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build | Test rualdlib
+        run: cd rualdlib && cargo test
