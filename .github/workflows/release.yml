@@ -5,9 +5,15 @@ on:
       - "v*"
 
 jobs:
+  version:
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    - id: version
+      run: echo ::set-output name=version::${GITHUB_REF#refs/*/}
+
   # Build binary for every OS expect Windows
   build_binaries:
-    needs: [rustfmt, clippy, audit, check, test]
+    needs: [version]
     name: Build release binaries
     strategy:
       fail-fast: false
@@ -20,16 +26,16 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu.tar.gz
+            name: rualdi-${{ needs.version.outputs.version }}_x86_64-unknown-linux-gnu.tar.gz
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
-            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl.tar.gz
+            name: rualdi-${{ needs.version.outputs.version }}_x86_64-unknown-linux-musl.tar.gz
           - target: armv7-unknown-linux-musleabihf
             os: ubuntu-latest
-            name: rualdi-${{ needs.check.outputs.version }}_armv7-unknown-linux-musleabihf.tar.gz
+            name: rualdi-${{ needs.version.outputs.version }}_armv7-unknown-linux-musleabihf.tar.gz
           - target: x86_64-apple-darwin
             os: macOS-latest
-            name: rualdi-${{ needs.check.outputs.version }}_x86_64-apple-darwin.tar.gz
+            name: rualdi-${{ needs.version.outputs.version }}_x86_64-apple-darwin.tar.gz
     runs-on: ${{ matrix.os }}
     steps:
       - name: Setup | Checkout
@@ -102,7 +108,7 @@ jobs:
 
 
   build_deb:
-    needs: [rustfmt, clippy, audit, check, test]
+    needs: [version]
     name: Build release deb packages
     strategy:
       fail-fast: false
@@ -114,13 +120,13 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu.deb
+            name: rualdi-${{ needs.version.outputs.version }}_x86_64-unknown-linux-gnu.deb
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
-            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl.deb
+            name: rualdi-${{ needs.version.outputs.version }}_x86_64-unknown-linux-musl.deb
           - target: armv7-unknown-linux-musleabihf
             os: ubuntu-latest
-            name: rualdi-${{ needs.check.outputs.version }}_armv7-unknown-linux-musleabihf.deb
+            name: rualdi-${{ needs.version.outputs.version }}_armv7-unknown-linux-musleabihf.deb
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -131,13 +137,13 @@ jobs:
         if: startsWith(matrix.target, 'x86_64')
         uses: ebbflow-io/cargo-deb-amd64-ubuntu@1.0
         with:
-          cmd: cargo deb --target=${{ matrix.target }} --deb-version ${{ needs.check.outputs.version }} -o ${{ matrix.name }}
+          cmd: cargo deb --target=${{ matrix.target }} --deb-version ${{ needs.version.outputs.version }} -o ${{ matrix.name }}
 
       - name: Build | Deb armv7 package
         if: startsWith(matrix.target, 'armv7')
         uses: ebbflow-io/cargo-deb-armv7-debian@1.0
         with:
-          cmd: cargo deb --target=${{ matrix.target }} --deb-version ${{ needs.check.outputs.version }} -o ${{ matrix.name }} --no-strip
+          cmd: cargo deb --target=${{ matrix.target }} --deb-version ${{ needs.version.outputs.version }} -o ${{ matrix.name }} --no-strip
 
       - name: Post Setup | Upload artifacts
         uses: actions/upload-artifact@v2
@@ -147,7 +153,7 @@ jobs:
 
 
   build_rpm_fedora:
-    needs: [rustfmt, clippy, audit, check, test]
+    needs: [version]
     name: Build release rpm Fedora package
     strategy:
       fail-fast: false
@@ -158,10 +164,10 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu_fedora.rpm
+            name: rualdi-${{ needs.version.outputs.version }}_x86_64-unknown-linux-gnu_fedora.rpm
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
-            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl_fedora.rpm
+            name: rualdi-${{ needs.version.outputs.version }}_x86_64-unknown-linux-musl_fedora.rpm
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -181,7 +187,7 @@ jobs:
 
   
   build_rpm_opensuseleap:
-    needs: [rustfmt, clippy, audit, check, test]
+    needs: [version]
     name: Build release rpm OpenSUSE Leap package
     strategy:
       fail-fast: false
@@ -192,10 +198,10 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-gnu_opensuseleap.rpm
+            name: rualdi-${{ needs.version.outputs.version }}_x86_64-unknown-linux-gnu_opensuseleap.rpm
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
-            name: rualdi-${{ needs.check.outputs.version }}_x86_64-unknown-linux-musl_opensuseleap.rpm
+            name: rualdi-${{ needs.version.outputs.version }}_x86_64-unknown-linux-musl_opensuseleap.rpm
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -216,7 +222,7 @@ jobs:
 
   github_release:
     name: Create GitHub Release
-    needs: [check, build_binaries, build_deb, build_rpm_fedora, build_rpm_opensuseleap]
+    needs: [build_binaries, build_deb, build_rpm_fedora, build_rpm_opensuseleap]
     runs-on: ubuntu-latest
     steps:
       - name: Setup | Checkout

@@ -62,19 +62,6 @@ jobs:
           command: clippy
           args: --all-targets --all-features -- -D clippy::all
 
-  # Run a security audit on dependencies
-  audit:
-    name: Cargo Audit [Security]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup | Checkout
-        uses: actions/checkout@v2
-
-      - name: Build | Audit
-        uses: actions-rs/audit-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
   # Ensure that the project could be successfully compiled
   check:
     name: Compile
@@ -102,9 +89,6 @@ jobs:
 
       - name: Build | Check
         run: cargo check --all
-
-      - id: version
-        run: echo ::set-output name=version::${GITHUB_REF#refs/*/}
 
   # Run tests on Linux, and macOS
   # On both Rust stable and Rust nightly
