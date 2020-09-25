@@ -10,9 +10,54 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      rualdi_local_version: ${{ steps.rualdi_local_version.outputs.version }}
+      ruadli_online_version: ${{ steps.ruadli_online_version.outputs.version }}
+      rualdlib_local_version: ${{ steps.rualdlib_local_version.outputs.version }}
+      rualdlib_online_version: ${{ steps.rualdlib_online_version.outputs.version }}
     steps:
-      - id: version
+      - name: Setup | Checkout
+        uses: actions/checkout@v2
+      - name: Setup | Repo version
+        id: version
         run: echo ::set-output name=version::${GITHUB_REF#refs/*/}
+      - name: Setup | Rualdi local version
+        id: rualdi_local_version
+        run: echo ::set-output name=version::grep 'version' Cargo.toml | sed 's/.*\([0-9]\.[0-9]\.[0-9]\)".*/\1/'
+      - name: Setup | Rualdi online version
+        id: ruadli_online_version
+        run: echo ::set-output name=version::cargo search rualdi | sed 's/.*\([0-9]\.[0-9]\.[0-9]\)".*/\1/'
+      - name: Setup | Rualdlib local version
+        id: rualdlib_local_version
+        run: echo ::set-output name=version::grep 'version' rualdlib/Cargo.toml | sed 's/.*\([0-9]\.[0-9]\.[0-9]\)".*/\1/'
+      - name: Setup | Rualdlib online version
+        id: rualdlib_online_version
+        run: echo ::set-output name=version::cargo search rualdlib | sed 's/.*\([0-9]\.[0-9]\.[0-9]\)".*/\1/'
+
+  cargo_publish:
+    name: Publish Cargo Package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup | Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup | Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Build | Publish Rualdlib
+        if: ${{ needs.rualdlib_local_version.outputs.version }} != ${{ needs.rualdlib_online_version.outputs.version }}
+        run: |
+          echo "Publish Rualdlib"
+          cargo publish --dry-run --manifest-path rualdlib/Cargo.toml --token ${{ secrets.CRATES_IO_TOKEN }}
+
+      - name: Build | Publish Rualdi
+        if: ${{ needs.rualdi_local_version.outputs.version }} != ${{ needs.rualdi_online_version.outputs.version }}
+        run: |
+          echo "Publish Rualdi"
+          cargo publish --dry-run --token ${{ secrets.CRATES_IO_TOKEN }}
 
   # Build binary for every OS expect Windows
   build_binaries:
