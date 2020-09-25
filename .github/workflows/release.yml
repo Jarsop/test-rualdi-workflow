@@ -288,9 +288,7 @@ jobs:
           override: true
 
       - name: Build | Publish Rualdlib
-        if: |
-          startsWith(${{ needs.version.outputs.rualdlib_local_version }}, ${{ needs.version.outputs.rualdlib_online_version }}) &&
-          endsWith(${{ needs.version.outputs.rualdlib_local_version }}, ${{ needs.version.outputs.rualdlib_online_version }})
+        if: startsWith(${{ needs.version.outputs.rualdlib_local_version }}, ${{ needs.version.outputs.rualdlib_online_version }}) != true
         run: |
           echo "Publish Rualdlib"
           echo Local ${{ needs.version.outputs.rualdlib_local_version }}
