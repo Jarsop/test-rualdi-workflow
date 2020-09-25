@@ -10,25 +10,19 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
-      rualdi_local_version: ${{ steps.rualdi_local_version.outputs.version }}
-      ruadli_online_version: ${{ steps.ruadli_online_version.outputs.version }}
       rualdlib_local_version: ${{ steps.rualdlib_local_version.outputs.version }}
       rualdlib_online_version: ${{ steps.rualdlib_online_version.outputs.version }}
     steps:
       - name: Setup | Checkout
         uses: actions/checkout@v2
+      - name: Setup | Updating crates.io index
+        run: cargo search --limit 0
       - name: Setup | Repo version
         id: version
         run: echo ::set-output name=version::${GITHUB_REF#refs/*/}
-      - name: Setup | Rualdi local version
-        id: rualdi_local_version
-        run: echo "::set-output name=version::$(grep -Pzo '\"rualdi\"\nversion.*\n' Cargo.toml | grep -Pzo 'version.*\n' | sed 's/.*\([0-9]\.[0-9]\.[0-9]\).*/\1/')"
-      - name: Setup | Rualdi online version
-        id: ruadli_online_version
-        run: echo "::set-output name=version::$(cargo search rualdi | sed 's/.*\([0-9]\.[0-9]\.[0-9]\).*/\1/')"
       - name: Setup | Rualdlib local version
         id: rualdlib_local_version
-        run: echo "::set-output name=version::$(grep -Pzo '\"rualdlib\"\nversion.*\n' rualdlib/Cargo.toml | grep -Pzo 'version.*\n' | sed 's/.*\([0-9]\.[0-9]\.[0-9]\).*/\1/')"
+        run: echo "::set-output name=version::$(grep -Pzo '\"rualdlib\"\nversion.*\n' rualdlib/Cargo.toml | grep -Pzo 'version.*\n' | tr '\0' '\n' | sed 's/.*\([0-9]\.[0-9]\.[0-9]\).*/\1/')"
       - name: Setup | Rualdlib online version
         id: rualdlib_online_version
         run: |
