@@ -293,13 +293,15 @@ jobs:
           override: true
 
       - name: Build | Publish Rualdlib
-        if: ${{ needs.rualdlib_local_version.outputs.version }} != ${{ needs.rualdlib_online_version.outputs.version }}
+        if: ${{ needs.version.outputs.rualdlib_local_version }} != ${{ needs.version.outputs.rualdlib_online_version }}
         run: |
           echo "Publish Rualdlib"
-          cargo publish --dry-run --manifest-path rualdlib/Cargo.toml --token ${{ secrets.CRATES_IO_TOKEN }}
+          cargo publish --dry-run --manifest-path rualdlib/Cargo.toml 
+        # --token ${{ secrets.CRATES_IO_TOKEN }}
 
       - name: Build | Publish Rualdi
-        if: ${{ needs.rualdi_local_version.outputs.version }} != ${{ needs.rualdi_online_version.outputs.version }}
+        if: ${{ needs.version.outputs.rualdi_local_version }} != ${{ needs.version.outputs.rualdi_online_version }}
         run: |
           echo "Publish Rualdi"
-          cargo publish --dry-run --token ${{ secrets.CRATES_IO_TOKEN }}
+          cargo publish --dry-run 
+        # --token ${{ secrets.CRATES_IO_TOKEN }}
