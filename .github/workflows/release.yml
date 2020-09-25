@@ -296,6 +296,8 @@ jobs:
         if: ${{ needs.version.outputs.rualdlib_local_version }} != ${{ needs.version.outputs.rualdlib_online_version }}
         run: |
           echo "Publish Rualdlib"
+          echo Local ${{ needs.version.outputs.rualdlib_local_version }}
+          echo Online ${{ needs.version.outputs.rualdlib_online_version }}
           cargo publish --dry-run --manifest-path rualdlib/Cargo.toml 
         # --token ${{ secrets.CRATES_IO_TOKEN }}
 
@@ -303,5 +305,7 @@ jobs:
         if: ${{ needs.version.outputs.rualdi_local_version }} != ${{ needs.version.outputs.rualdi_online_version }}
         run: |
           echo "Publish Rualdi"
+          echo Local ${{ needs.version.outputs.rualdi_local_version }}
+          echo Online ${{ needs.version.outputs.rualdi_online_version }}
           cargo publish --dry-run 
         # --token ${{ secrets.CRATES_IO_TOKEN }}
